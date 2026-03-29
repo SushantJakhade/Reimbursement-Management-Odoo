@@ -75,4 +75,4 @@ A premium, AI-powered reimbursement and expense management platform built with N
 - `uploads/`: Temporary storage for scanned receipts.
 
 ---
-Built with ❤️ by the Antigravity AI Team.
+Built with ❤️ by Team TRIGARTA.
