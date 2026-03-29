@@ -11,6 +11,14 @@ export class OcrController {
     return successResponse(res, result, 'OCR processing complete');
   });
 
+  static scanRaw = asyncHandler(async (req: Request, res: Response) => {
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: 'No file uploaded' });
+    }
+    const result = await ocrService.scanRaw(req.file);
+    return successResponse(res, result, 'Raw OCR scan complete');
+  });
+
   static getResult = asyncHandler(async (req: Request, res: Response) => {
     const result = await ocrService.getResult(req.params.id);
     return successResponse(res, result);

@@ -27,6 +27,7 @@ import reimbursementRoutes from './modules/reimbursement/reimbursement.routes';
 import recognitionRoutes from './modules/recognition/recognition.routes';
 import notificationRoutes from './modules/notification/notification.routes';
 import integrationRoutes from './modules/integration/integration.routes';
+import analyticsRoutes from './modules/analytics/analytics.routes';
 
 const app = express();
 
@@ -73,6 +74,7 @@ app.use(`${PREFIX}/approval/rules`, ruleRoutes);
 app.use(`${PREFIX}/approval/workflows`, workflowRoutes);
 app.use(`${PREFIX}/approval/actions`, actionRoutes);
 app.use(`${PREFIX}/budgets`, budgetRoutes);
+app.use(`${PREFIX}/analytics`, analyticsRoutes);
 app.use(`${PREFIX}/reimbursements`, reimbursementRoutes);
 app.use(`${PREFIX}/recognition`, recognitionRoutes);
 app.use(`${PREFIX}/notifications`, notificationRoutes);

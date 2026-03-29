@@ -17,7 +17,8 @@ export class ReportService {
       ...dto,
       companyId,
       userId,
-      companyCurrency: company?.defaultCurrency || 'USD',
+      currency: dto.currency || company?.defaultCurrency || 'INR',
+      companyCurrency: company?.defaultCurrency || 'INR',
     } as any);
   }
 

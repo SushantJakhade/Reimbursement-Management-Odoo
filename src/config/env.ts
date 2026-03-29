@@ -20,8 +20,8 @@ export const env = {
   exchangeRateApiKey: process.env.EXCHANGE_RATE_API_KEY || 'free-tier',
   restCountriesApiUrl: process.env.REST_COUNTRIES_API_URL || 'https://restcountries.com/v3.1',
 
-  // OCR
-  ocrLanguage: process.env.OCR_LANGUAGE || 'eng',
+  // OCR / AI Model
+  geminiApiKey: process.env.GEMINI_API_KEY || '',
 
   // File Upload
   uploadDir: process.env.UPLOAD_DIR || 'uploads',

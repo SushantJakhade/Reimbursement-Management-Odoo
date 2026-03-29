@@ -25,6 +25,6 @@ export const DEFAULT_EXPENSE_CATEGORIES = [
 ];
 
 export const SUPPORTED_CURRENCIES = [
-  'USD', 'EUR', 'GBP', 'INR', 'CAD', 'AUD', 'JPY', 'CNY', 'CHF', 'SGD',
+  'INR', 'EUR', 'GBP', 'INR', 'CAD', 'AUD', 'JPY', 'CNY', 'CHF', 'SGD',
   'HKD', 'NZD', 'SEK', 'NOK', 'DKK', 'ZAR', 'BRL', 'MXN', 'KRW', 'THB',
 ];

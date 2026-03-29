@@ -29,7 +29,7 @@ export class AuthService {
     // Determine default currency from country
     const defaultCurrency = dto.country
       ? await getCountryCurrency(dto.country)
-      : 'USD';
+      : 'INR';
 
     // Hash password
     const passwordHash = await hashPassword(dto.password);

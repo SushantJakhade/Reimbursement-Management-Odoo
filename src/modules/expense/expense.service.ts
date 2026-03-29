@@ -85,6 +85,12 @@ export class ExpenseService {
       if (filters.minAmount) prismaFilters.convertedAmount.gte = filters.minAmount;
       if (filters.maxAmount) prismaFilters.convertedAmount.lte = filters.maxAmount;
     }
+    if (filters?.search) {
+      prismaFilters.OR = [
+        { merchant: { contains: filters.search, mode: 'insensitive' } },
+        { description: { contains: filters.search, mode: 'insensitive' } },
+      ];
+    }
 
     return this.repo.findMany(
       companyId,

@@ -77,13 +77,13 @@ export async function getCountryCurrency(countryCode: string): Promise<string> {
     const url = `${env.restCountriesApiUrl}/alpha/${countryCode}?fields=currencies`;
     const response = await fetch(url);
 
-    if (!response.ok) return 'USD';
+    if (!response.ok) return 'INR';
 
     const data = (await response.json()) as { currencies: Record<string, { name: string; symbol: string }> };
     const currencies = Object.keys(data.currencies || {});
-    return currencies[0] || 'USD';
+    return currencies[0] || 'INR';
   } catch (error) {
     logger.warn('Failed to fetch country currency, defaulting to USD', { countryCode, error });
-    return 'USD';
+    return 'INR';
   }
 }
