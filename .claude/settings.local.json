@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cd /Users/sushantjakhade/Desktop/Reimbursement Management Odoo/frontend)"
+    ]
+  }
+}

@@ -1,0 +1,684 @@
+// ============================================================
+// AI-Powered Expense Management System — Prisma Schema
+// PostgreSQL • UUID PKs • Full Relationships
+// ============================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── ENUMS ──────────────────────────────────────────────────
+
+enum UserRole {
+  ADMIN
+  MANAGER
+  EMPLOYEE
+}
+
+enum ReportStatus {
+  DRAFT
+  SUBMITTED
+  UNDER_REVIEW
+  APPROVED
+  REJECTED
+  PAID
+}
+
+enum ExpenseStatus {
+  DRAFT
+  SUBMITTED
+  UNDER_REVIEW
+  APPROVED
+  REJECTED
+  PAID
+}
+
+enum ApprovalConditionType {
+  AMOUNT_THRESHOLD
+  CATEGORY
+  DEPARTMENT
+  CUSTOM
+}
+
+enum ApproverType {
+  MANAGER
+  SPECIFIC_USER
+  ROLE
+  DEPARTMENT_HEAD
+}
+
+enum WorkflowStatus {
+  PENDING
+  IN_PROGRESS
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+enum ApprovalActionType {
+  APPROVE
+  REJECT
+  DELEGATE
+  REQUEST_INFO
+}
+
+enum BudgetPeriod {
+  WEEKLY
+  MONTHLY
+  QUARTERLY
+  YEARLY
+}
+
+enum BudgetAlertType {
+  THRESHOLD
+  EXCEEDED
+  NEAR_LIMIT
+}
+
+enum PaymentMethod {
+  BANK_TRANSFER
+  CHECK
+  WALLET
+  PAYPAL
+}
+
+enum ReimbursementStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum PointsType {
+  EARNED
+  REDEEMED
+  BONUS
+}
+
+enum NotificationType {
+  APPROVAL_REQUEST
+  APPROVED
+  REJECTED
+  BUDGET_ALERT
+  PAYMENT_UPDATE
+  POINTS_EARNED
+  SYSTEM
+}
+
+enum OcrStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum DuplicateStatus {
+  DETECTED
+  CONFIRMED
+  DISMISSED
+}
+
+enum PolicyType {
+  EXPENSE_LIMIT
+  CATEGORY_RESTRICTION
+  APPROVAL_FLOW
+  RECEIPT_REQUIREMENT
+}
+
+enum IntegrationType {
+  PAYMENT_GATEWAY
+  ACCOUNTING
+  HR_SYSTEM
+  COMMUNICATION
+}
+
+enum CompanyPlan {
+  FREE
+  STARTER
+  PROFESSIONAL
+  ENTERPRISE
+}
+
+// ─── CORE ENTITIES ──────────────────────────────────────────
+
+model Company {
+  id              String      @id @default(uuid()) @db.Uuid
+  name            String
+  slug            String      @unique
+  defaultCurrency String      @default("USD") @db.VarChar(3)
+  country         String?
+  logo            String?
+  taxId           String?
+  address         String?
+  phone           String?
+  email           String
+  plan            CompanyPlan @default(FREE)
+  isActive        Boolean     @default(true)
+  createdAt       DateTime    @default(now()) @map("created_at")
+  updatedAt       DateTime    @updatedAt @map("updated_at")
+
+  // Relations
+  users                  User[]
+  departments            Department[]
+  expenseCategories      ExpenseCategory[]
+  policies               Policy[]
+  integrations           Integration[]
+  expenseReports         ExpenseReport[]
+  expenses               Expense[]
+  approvalRules          ApprovalRule[]
+  budgets                Budget[]
+  reimbursements         Reimbursement[]
+  recognitionPoints      RecognitionPointsLedger[]
+  notifications          Notification[]
+
+  @@map("companies")
+}
+
+model User {
+  id           String   @id @default(uuid()) @db.Uuid
+  companyId    String   @map("company_id") @db.Uuid
+  departmentId String?  @map("department_id") @db.Uuid
+  managerId    String?  @map("manager_id") @db.Uuid
+  email        String
+  passwordHash String   @map("password_hash")
+  firstName    String   @map("first_name")
+  lastName     String   @map("last_name")
+  role         UserRole @default(EMPLOYEE)
+  avatar       String?
+  phone        String?
+  designation  String?
+  totalPoints  Int      @default(0) @map("total_points")
+  isActive     Boolean  @default(true) @map("is_active")
+  lastLoginAt  DateTime? @map("last_login_at")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  // Self-reference
+  manager      User?    @relation("ManagerSubordinates", fields: [managerId], references: [id])
+  subordinates User[]   @relation("ManagerSubordinates")
+
+  // Relations
+  company             Company                  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  department           Department?              @relation("DepartmentMembers", fields: [departmentId], references: [id])
+  headOfDepartments    Department[]             @relation("DepartmentHead")
+  expenseReports       ExpenseReport[]
+  expenses             Expense[]
+  approvalActions      ApprovalAction[]
+  budgetsOwned         Budget[]                 @relation("BudgetOwner")
+  alertsAcknowledged   BudgetAlert[]            @relation("AlertAcknowledger")
+  reimbursements       Reimbursement[]
+  recognitionPoints    RecognitionPointsLedger[]
+  notifications        Notification[]
+  duplicatesResolved   DuplicateDetection[]     @relation("DuplicateResolver")
+
+  @@unique([companyId, email])
+  @@index([companyId])
+  @@index([managerId])
+  @@index([departmentId])
+  @@map("users")
+}
+
+model Department {
+  id        String  @id @default(uuid()) @db.Uuid
+  companyId String  @map("company_id") @db.Uuid
+  headId    String? @map("head_id") @db.Uuid
+  name      String
+  code      String
+  budget    Float?  @default(0)
+  isActive  Boolean @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  company  Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  head     User?    @relation("DepartmentHead", fields: [headId], references: [id])
+  members  User[]   @relation("DepartmentMembers")
+  budgets  Budget[]
+
+  @@unique([companyId, code])
+  @@index([companyId])
+  @@map("departments")
+}
+
+// ─── CONFIGURATION ──────────────────────────────────────────
+
+model ExpenseCategory {
+  id             String  @id @default(uuid()) @db.Uuid
+  companyId      String  @map("company_id") @db.Uuid
+  name           String
+  code           String
+  icon           String? @default("📁")
+  maxAmount      Float?  @map("max_amount")
+  requiresReceipt Boolean @default(false) @map("requires_receipt")
+  isActive       Boolean @default(true) @map("is_active")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  // Relations
+  company           Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  expenses          Expense[]
+  ocrCategoryMatches OcrCategoryMatch[]
+  budgets           Budget[]
+
+  @@unique([companyId, code])
+  @@index([companyId])
+  @@map("expense_categories")
+}
+
+model Policy {
+  id               String     @id @default(uuid()) @db.Uuid
+  companyId        String     @map("company_id") @db.Uuid
+  name             String
+  type             PolicyType
+  rules            Json       @default("{}")
+  maxExpenseAmount Float?     @map("max_expense_amount")
+  autoApproveBelow Float?     @map("auto_approve_below")
+  requireReceiptAbove Float?  @map("require_receipt_above")
+  isActive         Boolean    @default(true) @map("is_active")
+  createdAt        DateTime   @default(now()) @map("created_at")
+  updatedAt        DateTime   @updatedAt @map("updated_at")
+
+  // Relations
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@map("policies")
+}
+
+model Integration {
+  id        String          @id @default(uuid()) @db.Uuid
+  companyId String          @map("company_id") @db.Uuid
+  type      IntegrationType
+  apiKey    String?         @map("api_key")
+  config    Json            @default("{}")
+  isActive  Boolean         @default(true) @map("is_active")
+  createdAt DateTime        @default(now()) @map("created_at")
+  updatedAt DateTime        @updatedAt @map("updated_at")
+
+  // Relations
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@map("integrations")
+}
+
+// ─── EXPENSE LAYER ──────────────────────────────────────────
+
+model ExpenseReport {
+  id              String       @id @default(uuid()) @db.Uuid
+  companyId       String       @map("company_id") @db.Uuid
+  userId          String       @map("user_id") @db.Uuid
+  title           String
+  description     String?
+  status          ReportStatus @default(DRAFT)
+  totalAmount     Float        @default(0) @map("total_amount")
+  currency        String       @db.VarChar(3)
+  totalConverted  Float        @default(0) @map("total_converted")
+  companyCurrency String       @map("company_currency") @db.VarChar(3)
+  submittedAt     DateTime?    @map("submitted_at")
+  approvedAt      DateTime?    @map("approved_at")
+  paidAt          DateTime?    @map("paid_at")
+  createdAt       DateTime     @default(now()) @map("created_at")
+  updatedAt       DateTime     @updatedAt @map("updated_at")
+
+  // Relations
+  company  Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user     User      @relation(fields: [userId], references: [id])
+  expenses Expense[]
+
+  @@index([companyId])
+  @@index([userId])
+  @@index([status])
+  @@map("expense_reports")
+}
+
+model Expense {
+  id              String        @id @default(uuid()) @db.Uuid
+  reportId        String?       @map("report_id") @db.Uuid
+  companyId       String        @map("company_id") @db.Uuid
+  userId          String        @map("user_id") @db.Uuid
+  categoryId      String?       @map("category_id") @db.Uuid
+  description     String
+  merchant        String?
+  amount          Float
+  currency        String        @db.VarChar(3)
+  convertedAmount Float         @default(0) @map("converted_amount")
+  companyCurrency String        @map("company_currency") @db.VarChar(3)
+  exchangeRate    Float         @default(1) @map("exchange_rate")
+  expenseDate     DateTime      @map("expense_date")
+  status          ExpenseStatus @default(DRAFT)
+  isRecurring     Boolean       @default(false) @map("is_recurring")
+  tags            String[]      @default([])
+  notes           String?
+  location        String?
+  isDuplicate     Boolean       @default(false) @map("is_duplicate")
+  duplicateOfId   String?       @map("duplicate_of_id") @db.Uuid
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
+
+  // Self-reference for duplicates
+  duplicateOf       Expense?  @relation("ExpenseDuplicates", fields: [duplicateOfId], references: [id])
+  duplicates        Expense[] @relation("ExpenseDuplicates")
+
+  // Relations
+  report            ExpenseReport?           @relation(fields: [reportId], references: [id])
+  company           Company                  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user              User                     @relation(fields: [userId], references: [id])
+  category          ExpenseCategory?         @relation(fields: [categoryId], references: [id])
+  receipts          Receipt[]
+  approvalWorkflows ApprovalWorkflow[]
+  budgetUsages      BudgetUsage[]
+  reimbursement     Reimbursement?
+  recognitionPoints RecognitionPointsLedger[]
+  duplicateDetectionsAs    DuplicateDetection[] @relation("DuplicateSource")
+  duplicateDetectionsMatch DuplicateDetection[] @relation("DuplicateMatch")
+
+  @@index([companyId])
+  @@index([userId])
+  @@index([reportId])
+  @@index([status])
+  @@index([expenseDate])
+  @@index([merchant])
+  @@map("expenses")
+}
+
+model Receipt {
+  id           String   @id @default(uuid()) @db.Uuid
+  expenseId    String   @map("expense_id") @db.Uuid
+  fileUrl      String   @map("file_url")
+  fileName     String   @map("file_name")
+  mimeType     String   @map("mime_type")
+  fileSize     Int      @map("file_size")
+  thumbnailUrl String?  @map("thumbnail_url")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  // Relations
+  expense   Expense    @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+  ocrResult OcrResult?
+
+  @@index([expenseId])
+  @@map("receipts")
+}
+
+// ─── OCR / AI ───────────────────────────────────────────────
+
+model OcrResult {
+  id                String    @id @default(uuid()) @db.Uuid
+  receiptId         String    @unique @map("receipt_id") @db.Uuid
+  rawText           String?   @map("raw_text")
+  extractedAmount   Float?    @map("extracted_amount")
+  extractedCurrency String?   @map("extracted_currency") @db.VarChar(3)
+  extractedMerchant String?   @map("extracted_merchant")
+  extractedDate     DateTime? @map("extracted_date")
+  confidence        Float?    @default(0)
+  processingTime    Int?      @map("processing_time")
+  status            OcrStatus @default(PENDING)
+  errorMessage      String?   @map("error_message")
+  createdAt         DateTime  @default(now()) @map("created_at")
+
+  // Relations
+  receipt         Receipt            @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+  categoryMatches OcrCategoryMatch[]
+
+  @@map("ocr_results")
+}
+
+model OcrCategoryMatch {
+  id          String @id @default(uuid()) @db.Uuid
+  ocrResultId String @map("ocr_result_id") @db.Uuid
+  categoryId  String @map("category_id") @db.Uuid
+  confidence  Float  @default(0)
+  matchReason String? @map("match_reason")
+
+  // Relations
+  ocrResult OcrResult       @relation(fields: [ocrResultId], references: [id], onDelete: Cascade)
+  category  ExpenseCategory @relation(fields: [categoryId], references: [id])
+
+  @@index([ocrResultId])
+  @@map("ocr_category_matches")
+}
+
+model DuplicateDetection {
+  id                 String          @id @default(uuid()) @db.Uuid
+  expenseId          String          @map("expense_id") @db.Uuid
+  duplicateExpenseId String          @map("duplicate_expense_id") @db.Uuid
+  confidence         Float           @default(0)
+  matchFields        String[]        @default([]) @map("match_fields")
+  status             DuplicateStatus @default(DETECTED)
+  resolvedById       String?         @map("resolved_by_id") @db.Uuid
+  resolvedAt         DateTime?       @map("resolved_at")
+  createdAt          DateTime        @default(now()) @map("created_at")
+
+  // Relations
+  expense          Expense @relation("DuplicateSource", fields: [expenseId], references: [id])
+  duplicateExpense Expense @relation("DuplicateMatch", fields: [duplicateExpenseId], references: [id])
+  resolvedBy       User?   @relation("DuplicateResolver", fields: [resolvedById], references: [id])
+
+  @@index([expenseId])
+  @@index([duplicateExpenseId])
+  @@map("duplicate_detections")
+}
+
+// ─── APPROVAL ENGINE ────────────────────────────────────────
+
+model ApprovalRule {
+  id             String                @id @default(uuid()) @db.Uuid
+  companyId      String                @map("company_id") @db.Uuid
+  name           String
+  description    String?
+  conditionType  ApprovalConditionType @map("condition_type")
+  conditionValue Json                  @default("{}") @map("condition_value")
+  priority       Int                   @default(0)
+  isActive       Boolean               @default(true) @map("is_active")
+  createdAt      DateTime              @default(now()) @map("created_at")
+
+  // Relations
+  company   Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  steps     ApprovalRuleStep[]
+  workflows ApprovalWorkflow[]
+
+  @@index([companyId])
+  @@index([priority])
+  @@map("approval_rules")
+}
+
+model ApprovalRuleStep {
+  id                      String       @id @default(uuid()) @db.Uuid
+  ruleId                  String       @map("rule_id") @db.Uuid
+  stepOrder               Int          @map("step_order")
+  approverType            ApproverType @map("approver_type")
+  approverId              String?      @map("approver_id") @db.Uuid
+  requiredApprovalPercent Float?       @default(100) @map("required_approval_percent")
+  isConditional           Boolean      @default(false) @map("is_conditional")
+  condition               Json?
+
+  // Relations
+  rule    ApprovalRule     @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+  actions ApprovalAction[]
+
+  @@unique([ruleId, stepOrder])
+  @@index([ruleId])
+  @@map("approval_rule_steps")
+}
+
+model ApprovalWorkflow {
+  id          String         @id @default(uuid()) @db.Uuid
+  expenseId   String         @map("expense_id") @db.Uuid
+  ruleId      String         @map("rule_id") @db.Uuid
+  currentStep Int            @default(1) @map("current_step")
+  totalSteps  Int            @map("total_steps")
+  status      WorkflowStatus @default(PENDING)
+  startedAt   DateTime       @default(now()) @map("started_at")
+  completedAt DateTime?      @map("completed_at")
+  createdAt   DateTime       @default(now()) @map("created_at")
+
+  // Relations
+  expense Expense          @relation(fields: [expenseId], references: [id])
+  rule    ApprovalRule      @relation(fields: [ruleId], references: [id])
+  actions ApprovalAction[]
+
+  @@index([expenseId])
+  @@index([status])
+  @@map("approval_workflows")
+}
+
+model ApprovalAction {
+  id         String             @id @default(uuid()) @db.Uuid
+  workflowId String             @map("workflow_id") @db.Uuid
+  stepId     String             @map("step_id") @db.Uuid
+  approverId String             @map("approver_id") @db.Uuid
+  action     ApprovalActionType
+  comments   String?
+  actionDate DateTime           @default(now()) @map("action_date")
+  createdAt  DateTime           @default(now()) @map("created_at")
+
+  // Relations
+  workflow ApprovalWorkflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  step     ApprovalRuleStep @relation(fields: [stepId], references: [id])
+  approver User             @relation(fields: [approverId], references: [id])
+
+  @@index([workflowId])
+  @@index([approverId])
+  @@map("approval_actions")
+}
+
+// ─── BUDGET ─────────────────────────────────────────────────
+
+model Budget {
+  id             String       @id @default(uuid()) @db.Uuid
+  companyId      String       @map("company_id") @db.Uuid
+  departmentId   String?      @map("department_id") @db.Uuid
+  categoryId     String?      @map("category_id") @db.Uuid
+  userId         String?      @map("user_id") @db.Uuid
+  name           String
+  amount         Float
+  spent          Float        @default(0)
+  period         BudgetPeriod
+  startDate      DateTime     @map("start_date")
+  endDate        DateTime     @map("end_date")
+  alertThreshold Float        @default(90) @map("alert_threshold")
+  isActive       Boolean      @default(true) @map("is_active")
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+
+  // Relations
+  company    Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  department Department?      @relation(fields: [departmentId], references: [id])
+  category   ExpenseCategory? @relation(fields: [categoryId], references: [id])
+  owner      User?            @relation("BudgetOwner", fields: [userId], references: [id])
+  usages     BudgetUsage[]
+  alerts     BudgetAlert[]
+
+  @@index([companyId])
+  @@index([departmentId])
+  @@index([period])
+  @@map("budgets")
+}
+
+model BudgetUsage {
+  id         String   @id @default(uuid()) @db.Uuid
+  budgetId   String   @map("budget_id") @db.Uuid
+  expenseId  String   @map("expense_id") @db.Uuid
+  amount     Float
+  recordedAt DateTime @default(now()) @map("recorded_at")
+
+  // Relations
+  budget  Budget  @relation(fields: [budgetId], references: [id], onDelete: Cascade)
+  expense Expense @relation(fields: [expenseId], references: [id])
+
+  @@index([budgetId])
+  @@map("budget_usages")
+}
+
+model BudgetAlert {
+  id             String          @id @default(uuid()) @db.Uuid
+  budgetId       String          @map("budget_id") @db.Uuid
+  type           BudgetAlertType
+  message        String
+  percentUsed    Float           @map("percent_used")
+  triggeredAt    DateTime        @default(now()) @map("triggered_at")
+  acknowledgedById String?       @map("acknowledged_by_id") @db.Uuid
+  acknowledgedAt DateTime?       @map("acknowledged_at")
+
+  // Relations
+  budget       Budget @relation(fields: [budgetId], references: [id], onDelete: Cascade)
+  acknowledgedBy User? @relation("AlertAcknowledger", fields: [acknowledgedById], references: [id])
+
+  @@index([budgetId])
+  @@map("budget_alerts")
+}
+
+// ─── FINANCE & ENGAGEMENT ───────────────────────────────────
+
+model Reimbursement {
+  id              String              @id @default(uuid()) @db.Uuid
+  expenseId       String              @unique @map("expense_id") @db.Uuid
+  userId          String              @map("user_id") @db.Uuid
+  companyId       String              @map("company_id") @db.Uuid
+  amount          Float
+  currency        String              @db.VarChar(3)
+  paymentMethod   PaymentMethod       @default(BANK_TRANSFER) @map("payment_method")
+  status          ReimbursementStatus @default(PENDING)
+  referenceNumber String?             @map("reference_number")
+  processedAt     DateTime?           @map("processed_at")
+  failureReason   String?             @map("failure_reason")
+  createdAt       DateTime            @default(now()) @map("created_at")
+
+  // Relations
+  expense Expense @relation(fields: [expenseId], references: [id])
+  user    User    @relation(fields: [userId], references: [id])
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([companyId])
+  @@index([status])
+  @@map("reimbursements")
+}
+
+model RecognitionPointsLedger {
+  id           String     @id @default(uuid()) @db.Uuid
+  userId       String     @map("user_id") @db.Uuid
+  companyId    String     @map("company_id") @db.Uuid
+  expenseId    String?    @map("expense_id") @db.Uuid
+  points       Int
+  type         PointsType
+  reason       String
+  balanceAfter Int        @map("balance_after")
+  createdAt    DateTime   @default(now()) @map("created_at")
+
+  // Relations
+  user    User     @relation(fields: [userId], references: [id])
+  company Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  expense Expense? @relation(fields: [expenseId], references: [id])
+
+  @@index([userId])
+  @@index([companyId])
+  @@map("recognition_points_ledger")
+}
+
+model Notification {
+  id        String           @id @default(uuid()) @db.Uuid
+  userId    String           @map("user_id") @db.Uuid
+  companyId String           @map("company_id") @db.Uuid
+  type      NotificationType
+  title     String
+  message   String
+  data      Json?            @default("{}")
+  isRead    Boolean          @default(false) @map("is_read")
+  readAt    DateTime?        @map("read_at")
+  createdAt DateTime         @default(now()) @map("created_at")
+
+  // Relations
+  user    User    @relation(fields: [userId], references: [id])
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([companyId])
+  @@index([isRead])
+  @@index([createdAt])
+  @@map("notifications")
+}
